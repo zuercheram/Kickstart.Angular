@@ -1,0 +1,90 @@
+parameters:
+  - name: dotNetBuildProjects
+    type: string
+    default: "**/*.sln"
+  - name: dotNetSolutionFolder
+    type: string
+    default: "/home/vsts/work/1/s/"
+  - name: buildConfiguration
+    type: string
+    default: "Release"
+  - name: "clientPath"
+    type: string
+    default: "src/Client"
+
+jobs:
+  - job: Build
+    displayName: Quality Build Kickstart.Angular
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+        fetchDepth: 0 # disable shallow fetch (https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema/steps-checkout?view=azure-pipelines#shallow-fetch)
+      - task: UseDotNet@2
+        displayName: Get DotNet SDK
+        inputs:
+          packageType: sdk
+          useGlobalJson: true
+      # Don't forget to ask the responsible people for SonarCloud at isolutions to share the shared service connection for SonarCloud integration to the project
+      # - task: SonarCloudPrepare@3
+      #   displayName: "Prepare analysis configuration"
+      #   inputs:
+      #     SonarCloud: "shared-sonarcloud-service-connection-AZ_DEVOPS_PROJECT_NAME"
+      #     organization: isolutionsag
+      #     scannerMode: dotnet
+      #     projectKey: Kickstart.Angular
+      #     extraProperties: |
+      #       scm.provider=git
+      #       sonar.typescript.tsconfigPaths=src/Client/tsconfig.json
+      #       sonar.projectBaseDir=/home/vsts/work/1/s/
+      #       sonar.exclusions=**/bin/**,**/obj/**,**/*.dll,**/.yarn/**,**/node_modules/**,**/.pnp*
+      #       sonar.cs.vscoveragexml.reportsPaths=${{parameters.dotNetSolutionFolder}}/coverage.xml
+      - task: DotNetCoreCLI@2
+        displayName: Build Kickstart.Angular App
+        inputs:
+          command: build
+          projects: ${{parameters.dotNetBuildProjects}}
+          arguments: "--configuration ${{parameters.buildConfiguration}}"
+      - task: DotNetCoreCLI@2
+        displayName: Test Kickstart.Angular App
+        inputs:
+          command: test
+          projects: ${{parameters.dotNetTestProjects}}
+          arguments: '--configuration ${{parameters.buildConfiguration}} --collect "Code coverage"'
+      # if you use SonarCloud, remove the test step above and activate the test execution with dotnet-coverage
+      # - script: dotnet tool install --global dotnet-coverage
+      #   displayName: Install dotnet-coverage
+      # - script: dotnet-coverage collect "dotnet test ${{parameters.dotNetSolutionFolder}} --configuration ${{parameters.buildConfiguration}}" -f xml -o "coverage.xml"
+      #   displayName: TestKickstart.Angular App
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "22.4.x"
+      - task: Bash@3
+        displayName: Yarn - Install
+        inputs:
+          targetType: inline
+          workingDirectory: ${{parameters.clientPath}}
+          script: |
+            yarn set version 4.3.1
+      - task: Bash@3
+        displayName: Yarn - Install NPM packages
+        inputs:
+          targetType: inline
+          workingDirectory: ${{parameters.clientPath}}
+          script: |
+            yarn install --immutable
+      - task: Bash@3
+        displayName: Yarn - Run jest
+        inputs:
+          targetType: inline
+          workingDirectory: ${{parameters.clientPath}}
+          script: |
+            yarn test-ci
+      # - task: SonarCloudAnalyze@3
+      #   displayName: SonarCloud - Run code analysis
+      # - task: SonarCloudPublish@3
+      #   displayName: SonarCloud - Publish quality gate result
+      # - task: PublishCodeCoverageResults@2
+      #   displayName: "Publish code coverage results"
+      #   inputs:
+      #     summaryFileLocation: ${{parameters.dotNetSolutionFolder}}/coverage.xml
