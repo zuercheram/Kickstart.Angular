@@ -412,5 +412,4 @@ crash.*.log
 # project specific ignore
 *.orig
 src/Server/wwwroot/*
-src/Client/.vitest-preview/*
 /src/_logs-**
